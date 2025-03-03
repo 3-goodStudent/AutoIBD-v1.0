@@ -1,14 +1,23 @@
+# ------------------------------
+# 核心依赖（严格保持顺序）
+# ------------------------------
 import streamlit as st
+
+# 必须第一个设置页面配置
 st.set_page_config(
-    page_title="IBD Intelligent Diagnostic System",
+    page_title="IBD智能诊断系统",
     page_icon="🩺",
     layout="wide",
     initial_sidebar_state="expanded"
 )
+
+import base64
 import pandas as pd
 import joblib
-import base64
 
+# ------------------------------
+# 背景设置（与文档2一致）
+# ------------------------------
 def set_bg_local(image_file):
     with open(image_file, "rb") as f:
         img_data = f.read()
@@ -20,104 +29,87 @@ def set_bg_local(image_file):
         .stApp {{
             background-image: url(data:image/png;base64,{b64_encoded});
             background-size: cover;
+            background-position: center;
+        }}
+        .main .block-container {{
+            background-color: rgba(255, 255, 255, 0.85);
+            border-radius: 10px;
+            padding: 2rem;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
         }}
         </style>
         """,
         unsafe_allow_html=True
     )
 
-# 在设置页面配置后调用
-st.set_page_config(...)  
-set_bg_local("background.jpg")
-
 # ------------------------------
-# 1. 模型加载函数
+# 模型加载（与原始文档一致）
 # ------------------------------
 @st.cache(allow_output_mutation=True)
 def load_model(model_path):
-    """
-    加载保存好的模型文件
-    """
     return joblib.load(model_path)
 
-
-# 加载模型文件（确保这些文件已上传到项目目录中）
 catboost_model = load_model('IBD_vs_HC_best_model.pkl')
 lightgbm_model = load_model('CD_vs_UC_best_model.pkl')
 
-
 # ------------------------------
-# 2. 数据预处理函数
+# 预处理函数（保持文档结构）
 # ------------------------------
 def preprocess_data(df):
-    """
-    根据训练时的预处理流程，对上传的数据进行预处理。
-    假设数据格式为：第一行包含标签信息（从第二列开始），第一列为物种名称，
-    第二行及以后为各样本的相对丰度数据。
-    """
     try:
-        # 获取标签信息：第一行第二列开始的部分
         labels = df.iloc[0, 1:].replace({'IBD': 1, 'HC': 0}).astype(int)
-        # 获取特征矩阵：从第二行开始，第一列为物种名称
         features = df.iloc[1:, 1:].copy()
-        # 简化物种名称：以 "s__" 分割并取最后一部分
         features.index = df.iloc[1:, 0].str.split('s__').str[-1]
-        # 将特征数据转换为数值型，缺失值填充为 0
         features = features.apply(pd.to_numeric, errors='coerce').fillna(0)
-        # 转置为样本×特征格式
         return features.T, labels
     except Exception as e:
-        st.error(f"Data preprocessing error: {str(e)}")
+        st.error(f"数据处理错误: {str(e)}")
         return None, None
 
 # ------------------------------
-# 3. Streamlit 应用主体
+# 主界面（优化后的交互）
 # ------------------------------
+set_bg_local("background.jpg")  # 调用背景设置
+
 st.title("IBD Diagnosis and Subtyping Online System")
-st.write("""
-This application enables non-invasive IBD diagnosis and subtyping based on a two-stage machine learning model:\n
-🌈 1. The first stage utilizes the CatBoost model to differentiate between IBD and healthy controls;\n
-🌈 2. In the second stage, the LightGBM model was used to further differentiate Crohn's Disease (CD) from Ulcerative Colitis (UC) in samples predicted to have IBD.\n
+st.markdown("""
+This application enables non-invasive IBD diagnosis and subtyping based on a two-stage machine learning model:
+
+**Stage 1** 🔍 CatBoost classification (IBD vs Healthy)  
+**Stage 2** 🧬 LightGBM classification (CD vs UC)
 """)
 
-# 侧边栏上传数据
-st.sidebar.header("Upload input data")
-uploaded_file = st.sidebar.file_uploader("Please upload a CSV or Excel file containing the feature data.", type=["csv", "xlsx"])
+# 侧边栏上传（保持文档逻辑）
+uploaded_file = st.sidebar.file_uploader("Upload CSV/Excel", type=["csv", "xlsx"], help="Upload microbiome data in required format")
 
 if uploaded_file is not None:
-    # 根据文件类型读取数据
     try:
-        if uploaded_file.name.endswith('.csv'):
-            df = pd.read_csv(uploaded_file)
-        else:
-            df = pd.read_excel(uploaded_file)
-    except Exception as e:
-        st.error(f"Failed to read file: {str(e)}")
+        with st.spinner('Parsing data...'):
+            df = pd.read_csv(uploaded_file) if uploaded_file.name.endswith('.csv') else pd.read_excel(uploaded_file)
+        
+        col1, col2 = st.columns([3, 2])
+        with col1:
+            st.subheader("Data Preview")
+            st.dataframe(df.head(), height=200)
+            
+            X, _ = preprocess_data(df)
+            st.success(f"Valid feature matrix: {X.shape[0]} samples × {X.shape[1]} features")
 
-    st.write("### Upload data preview")
-    st.write(df.head())
-
-    # 对上传数据进行预处理
-    X, y_dummy = preprocess_data(df)
-    if X is None:
-        st.error("Data preprocessing failed, please check if the file format is correct.")
-    else:
-        st.write(f"Shape of preprocessed data:{X.shape}")
-
-        # 提供按钮进行预测
-        if st.sidebar.button("Start forecasting"):
-            # 第一阶段预测：IBD vs. Healthy
-            # 这里假设模型直接输出类别，1 表示 IBD，0 表示 Healthy
-            stage1_pred = catboost_model.predict(X)
-
-            if stage1_pred[0] == 1:
-                st.success("Predicted outcome: IBD")
-                # 第二阶段预测：CD vs. UC
-                stage2_pred = lightgbm_model.predict(X)
-                # 假设输出 1 表示 CD，0 表示 UC
-                if stage2_pred[0] == 1:
-                    st.info("Staging results: Crohn's Disease (CD)")
+        # 预测逻辑（保持原始业务逻辑）
+        if st.sidebar.button("Run Analysis", type="primary"):
+            with st.status("Analyzing...", expanded=True) as status:
+                st.write("Stage 1: IBD Detection")
+                stage1_pred = catboost_model.predict(X)
+                
+                if stage1_pred[0] == 1:
+                    st.write("Stage 2: Disease Subtyping")
+                    stage2_pred = lightgbm_model.predict(X)
+                    
+                    status.update(label="Analysis Complete", state="complete")
+                    st.success(f"**Final Diagnosis**: {'Crohn’s Disease' if stage2_pred[0]==1 else 'Ulcerative Colitis'}")
                 else:
-                    st.info("Staging results: Ulcerative Colitis (UC)")
-            else:
-                st.success("Predicted outcome: Healthy")
+                    status.update(label="Analysis Complete", state="complete")
+                    st.success("**Result**: Healthy Control")
+
+    except Exception as e:
+        st.error(f"Processing Error: {e}")
