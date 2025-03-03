@@ -170,7 +170,7 @@ if uploaded_file:
                             state="complete",
                             expanded=False
                         )
-                        st.success(f"**Final diagnosis**: {'Crohn's disease（CD）' if stage2_pred[0]==1 else 'ulcerative colitis（UC）'}")
+                        st.success(f"**Final diagnosis**: {'Crohn\'s disease（CD）' if stage2_pred[0]==1 else 'ulcerative colitis（UC）'}")
                     else:
                         status.update(
                             label="Analysis completed ✅",
