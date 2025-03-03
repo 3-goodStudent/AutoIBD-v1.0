@@ -7,6 +7,7 @@ st.set_page_config(
 )
 import pandas as pd
 import joblib
+import base64
 
 
 # ------------------------------
@@ -49,6 +50,22 @@ def preprocess_data(df):
         st.error(f"Data preprocessing error: {str(e)}")
         return None, None
 
+def set_bg_local(image_file):
+    with open(image_file, "rb") as f:
+        img_data = f.read()
+    b64_encoded = base64.b64encode(img_data).decode()
+    
+    st.markdown(
+        f"""
+        <style>
+        .stApp {{
+            background-image: url(data:image/png;base64,{b64_encoded});
+            background-size: cover;
+        }}
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
 
 # ------------------------------
 # 3. Streamlit 应用主体
@@ -59,6 +76,10 @@ This application enables non-invasive IBD diagnosis and subtyping based on a two
 🌈 1. The first stage utilizes the CatBoost model to differentiate between IBD and healthy controls;\n
 🌈 2. In the second stage, the LightGBM model was used to further differentiate Crohn's Disease (CD) from Ulcerative Colitis (UC) in samples predicted to have IBD.\n
 """)
+
+# 在设置页面配置后调用
+st.set_page_config(...)  
+set_bg_local("background.jpg")
 
 # 侧边栏上传数据
 st.sidebar.header("Upload input data")
