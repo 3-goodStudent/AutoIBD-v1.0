@@ -1,12 +1,12 @@
 # ------------------------------
-# 核心依赖（严格保持顺序）
+# 核心依赖（保持严格顺序）
 # ------------------------------
 import streamlit as st
 
 # 必须第一个设置页面配置
 st.set_page_config(
     page_title="IBD智能诊断系统",
-    page_icon="🩺",
+    page_icon="🏥",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -16,7 +16,7 @@ import pandas as pd
 import joblib
 
 # ------------------------------
-# 背景设置（与文档2一致）
+# 背景与样式设置
 # ------------------------------
 def set_bg_local(image_file):
     with open(image_file, "rb") as f:
@@ -32,19 +32,20 @@ def set_bg_local(image_file):
             background-position: center;
         }}
         .main .block-container {{
-            background-color: rgba(255, 255, 255, 0.85);
-            border-radius: 10px;
-            padding: 2rem;
-            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            background-color: rgba(255, 255, 255, 0.88);
+            border-radius: 12px;
+            padding: 2.5rem;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
         }}
-
+        
+        /* 侧边栏样式 */
         [data-testid="stSidebar"] {{
-            background-color: rgba(255, 255, 255, 0.9) !important;
-            border-radius: 10px 0 0 10px;
-            box-shadow: 2px 0 8px rgba(0,0,0,0.1);
+            background: linear-gradient(175deg, rgba(255,255,255,0.96) 0%, rgba(249,249,249,0.96) 100%) !important;
+            border-right: 1px solid #eee;
+            box-shadow: 5px 0 15px rgba(0,0,0,0.03);
         }}
         [data-testid="stSidebar"] .block-container {{
-            padding: 2rem 1.5rem;
+            padding: 2rem 1.2rem;
         }}
         </style>
         """,
@@ -52,7 +53,7 @@ def set_bg_local(image_file):
     )
 
 # ------------------------------
-# 模型加载（与原始文档一致）
+# 模型加载（保持不变）
 # ------------------------------
 @st.cache(allow_output_mutation=True)
 def load_model(model_path):
@@ -62,7 +63,7 @@ catboost_model = load_model('IBD_vs_HC_best_model.pkl')
 lightgbm_model = load_model('CD_vs_UC_best_model.pkl')
 
 # ------------------------------
-# 预处理函数（保持文档结构）
+# 预处理函数
 # ------------------------------
 def preprocess_data(df):
     try:
@@ -76,49 +77,113 @@ def preprocess_data(df):
         return None, None
 
 # ------------------------------
-# 主界面（优化后的交互）
+# 初始化背景
 # ------------------------------
 set_bg_local("background.jpg")  # 调用背景设置
 
-st.title("IBD Diagnosis and Subtyping Online System")
+# ------------------------------
+# 主界面
+# ------------------------------
+st.title("肠道菌群IBD智能诊断系统")
 st.markdown("""
-This application enables non-invasive IBD diagnosis and subtyping based on a two-stage machine learning model:
-
-**Stage 1** 🔍 CatBoost classification (IBD vs Healthy)  
-**Stage 2** 🧬 LightGBM classification (CD vs UC)
+**基于机器学习的两阶段诊断模型**  
+- **Stage1**: 采用CatBoost算法筛查IBD（炎症性肠病） 🦠  
+- **Stage2**: 使用LightGBM算法区分CD和UC亚型 🔬
 """)
 
-# 侧边栏上传（保持文档逻辑）
-uploaded_file = st.sidebar.file_uploader("Upload CSV/Excel", type=["csv", "xlsx"], help="Upload microbiome data in required format")
+# ------------------------------
+# 侧边栏 - 数据上传
+# ------------------------------
+with st.sidebar:
+    st.header("数据上传")
+    uploaded_file = st.file_uploader(
+        "上传检测数据（*.csv / *.xlsx）",
+        type=["csv", "xlsx"],
+        help="文件格式要求：\n1. 首行为样本标签\n2. 首列为菌群物种名称"
+    )
+    
+    if uploaded_file:
+        st.success("✔️ 文件上传成功")
+        st.caption(f"已接收文件：`{uploaded_file.name}`")
 
-if uploaded_file is not None:
+# ------------------------------
+# 主内容区
+# ------------------------------
+if uploaded_file:
     try:
-        with st.spinner('Parsing data...'):
+        # 数据加载与预处理
+        with st.spinner('正在解析数据...'):
             df = pd.read_csv(uploaded_file) if uploaded_file.name.endswith('.csv') else pd.read_excel(uploaded_file)
-        
-        col1, col2 = st.columns([3, 2])
-        with col1:
-            st.subheader("Data Preview")
-            st.dataframe(df.head(), height=200)
-            
             X, _ = preprocess_data(df)
-            st.success(f"Valid feature matrix: {X.shape[0]} samples × {X.shape[1]} features")
-
-        # 预测逻辑（保持原始业务逻辑）
-        if st.sidebar.button("Run Analysis", type="primary"):
-            with st.status("Analyzing...", expanded=True) as status:
-                st.write("Stage 1: IBD Detection")
-                stage1_pred = catboost_model.predict(X)
-                
-                if stage1_pred[0] == 1:
-                    st.write("Stage 2: Disease Subtyping")
-                    stage2_pred = lightgbm_model.predict(X)
-                    
-                    status.update(label="Analysis Complete", state="complete")
-                    st.success(f"**Final Diagnosis**: {'Crohn’s Disease' if stage2_pred[0]==1 else 'Ulcerative Colitis'}")
+        
+        # 布局设置
+        col1, col2 = st.columns([3, 2])
+        
+        with col1:
+            # ===== 数据预览部分 =====
+            st.subheader("数据概览")
+            st.dataframe(df.head(3), use_container_width=True, height=200)
+            
+            # 显示数据特征统计
+            with st.expander("查看数据统计"):
+                st.write(f"特征数量：{X.shape[1]}")
+                st.write(f"样本数量：{X.shape[0]}")
+            
+            # ===== 诊断按钮区域 =====
+            st.divider()
+            btn_col, status_col = st.columns([2, 4])
+            
+            with btn_col:
+                if st.button(
+                    "🚀 启动智能诊断",
+                    help="点击开始分析流程",
+                    use_container_width=True,
+                    type="primary"
+                ):
+                    st.session_state.run_diagnosis = True
+            
+            with status_col:
+                if 'run_diagnosis' not in st.session_state:
+                    st.info("等待启动诊断分析...")
                 else:
-                    status.update(label="Analysis Complete", state="complete")
-                    st.success("**Result**: Healthy Control")
+                    st.empty()
 
+        # ===== 执行诊断流程 =====
+        if 'run_diagnosis' in st.session_state:
+            with col1:
+                with st.status("正在进行深度分析...", expanded=True) as status:
+                    # Stage1预测
+                    st.write("**Stage1 - IBD初步筛查**")
+                    stage1_pred = catboost_model.predict(X)
+                    prob1 = catboost_model.predict_proba(X)[0][1] * 100
+                    st.write(f"IBD可能性：{prob1:.1f}%")
+                    
+                    # Stage2预测（如果预测为IBD）
+                    if stage1_pred[0] == 1:
+                        st.write("**Stage2 - 疾病亚型分析**")
+                        stage2_pred = lightgbm_model.predict(X)
+                        prob2 = lightgbm_model.predict_proba(X)[0][1] * 100
+                        st.write(f"CD可能性：{prob2:.1f}%")
+                        
+                        status.update(
+                            label="分析完成 ✅",
+                            state="complete",
+                            expanded=False
+                        )
+                        st.success(f"**最终诊断**: {'克罗恩病（CD）' if stage2_pred[0]==1 else '溃疡性结肠炎（UC）'}")
+                    else:
+                        status.update(
+                            label="分析完成 ✅",
+                            state="complete",
+                            expanded=False
+                        )
+                        st.success("**诊断结果**: 健康对照（HC）")
+                    
+        with col2:
+            # ===== 可视化区域 =====
+            st.subheader("特征分析")
+            st.write("*此处可集成SHAP可视化组件*")
+            
     except Exception as e:
-        st.error(f"Processing Error: {e}")
+        st.error(f"遇到错误: {str(e)}")
+        st.info("请检查数据格式是否符合要求")
