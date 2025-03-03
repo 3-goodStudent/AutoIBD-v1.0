@@ -53,7 +53,7 @@ def preprocess_data(df):
 # ------------------------------
 # 3. Streamlit 应用主体
 # ------------------------------
-st.title("IBD Diagnosis and Staging Online System")
+st.title("IBD Diagnosis and Subtyping Online System")
 st.write("""
 This application enables non-invasive IBD diagnosis and subtyping based on a two-stage machine learning model:\n
 🌈 1. The first stage utilizes the CatBoost model to differentiate between IBD and healthy controls;\n
