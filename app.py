@@ -70,16 +70,16 @@ def set_bg_local(image_file):
 # ------------------------------
 # 3. Streamlit 应用主体
 # ------------------------------
+# 在设置页面配置后调用
+st.set_page_config(...)  
+set_bg_local("background.jpg")
+
 st.title("IBD Diagnosis and Subtyping Online System")
 st.write("""
 This application enables non-invasive IBD diagnosis and subtyping based on a two-stage machine learning model:\n
 🌈 1. The first stage utilizes the CatBoost model to differentiate between IBD and healthy controls;\n
 🌈 2. In the second stage, the LightGBM model was used to further differentiate Crohn's Disease (CD) from Ulcerative Colitis (UC) in samples predicted to have IBD.\n
 """)
-
-# 在设置页面配置后调用
-st.set_page_config(...)  
-set_bg_local("background.jpg")
 
 # 侧边栏上传数据
 st.sidebar.header("Upload input data")
