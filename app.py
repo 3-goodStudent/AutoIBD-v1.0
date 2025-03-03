@@ -1,4 +1,10 @@
 import streamlit as st
+st.set_page_config(
+    page_title="IBD Intelligent Diagnostic System",
+    page_icon="🩺",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
 import pandas as pd
 import joblib
 
@@ -47,13 +53,6 @@ def preprocess_data(df):
 # ------------------------------
 # 3. Streamlit 应用主体
 # ------------------------------
-st.set_page_config(
-    page_title="IBD Intelligent Diagnostic System",
-    page_icon="🩺",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
-
 st.title("IBD Diagnosis and Staging Online System")
 st.write("""
 This application enables non-invasive IBD diagnosis and subtyping based on a two-stage machine learning model:
