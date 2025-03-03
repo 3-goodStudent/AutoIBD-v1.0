@@ -37,6 +37,15 @@ def set_bg_local(image_file):
             padding: 2rem;
             box-shadow: 0 0 10px rgba(0,0,0,0.1);
         }}
+
+        [data-testid="stSidebar"] {{
+            background-color: rgba(255, 255, 255, 0.9) !important;
+            border-radius: 10px 0 0 10px;
+            box-shadow: 2px 0 8px rgba(0,0,0,0.1);
+        }}
+        [data-testid="stSidebar"] .block-container {{
+            padding: 2rem 1.5rem;
+        }}
         </style>
         """,
         unsafe_allow_html=True
