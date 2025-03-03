@@ -5,7 +5,7 @@ import streamlit as st
 
 # 必须第一个设置页面配置
 st.set_page_config(
-    page_title="IBD智能诊断系统",
+    page_title="IBD Intelligent Diagnostic System",
     page_icon="🏥",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -73,7 +73,7 @@ def preprocess_data(df):
         features = features.apply(pd.to_numeric, errors='coerce').fillna(0)
         return features.T, labels
     except Exception as e:
-        st.error(f"数据处理错误: {str(e)}")
+        st.error(f"Data processing errors: {str(e)}")
         return None, None
 
 # ------------------------------
@@ -84,27 +84,27 @@ set_bg_local("background.jpg")  # 调用背景设置
 # ------------------------------
 # 主界面
 # ------------------------------
-st.title("肠道菌群IBD智能诊断系统")
+st.title("Intelligent Diagnostic System for Intestinal Flora IBD")
 st.markdown("""
-**基于机器学习的两阶段诊断模型**  
-- **Stage1**: 采用CatBoost算法筛查IBD（炎症性肠病） 🦠  
-- **Stage2**: 使用LightGBM算法区分CD和UC亚型 🔬
+**A two-stage diagnostic model based on machine learning**  
+- **Stage1**: Screening for IBD (Inflammatory Bowel Disease) using the CatBoost algorithm 🦠  
+- **Stage2**: Distinguishing CD and UC subtypes using the LightGBM algorithm 🔬
 """)
 
 # ------------------------------
 # 侧边栏 - 数据上传
 # ------------------------------
 with st.sidebar:
-    st.header("数据上传")
+    st.header("Data upload")
     uploaded_file = st.file_uploader(
-        "上传检测数据（*.csv / *.xlsx）",
+        "Upload test data（*.csv / *.xlsx）",
         type=["csv", "xlsx"],
-        help="文件格式要求：\n1. 首行为样本标签\n2. 首列为菌群物种名称"
+        help="Document formatting requirements：\n1. Sample labels for the first row\n2. First listed as species name of the colony"
     )
     
     if uploaded_file:
-        st.success("✔️ 文件上传成功")
-        st.caption(f"已接收文件：`{uploaded_file.name}`")
+        st.success("✔️ File uploaded successfully")
+        st.caption(f"Documents received：`{uploaded_file.name}`")
 
 # ------------------------------
 # 主内容区
@@ -112,7 +112,7 @@ with st.sidebar:
 if uploaded_file:
     try:
         # 数据加载与预处理
-        with st.spinner('正在解析数据...'):
+        with st.spinner('Parsing data...'):
             df = pd.read_csv(uploaded_file) if uploaded_file.name.endswith('.csv') else pd.read_excel(uploaded_file)
             X, _ = preprocess_data(df)
         
@@ -121,13 +121,13 @@ if uploaded_file:
         
         with col1:
             # ===== 数据预览部分 =====
-            st.subheader("数据概览")
+            st.subheader("Data overview")
             st.dataframe(df.head(3), use_container_width=True, height=200)
             
             # 显示数据特征统计
-            with st.expander("查看数据统计"):
-                st.write(f"特征数量：{X.shape[1]}")
-                st.write(f"样本数量：{X.shape[0]}")
+            with st.expander("View Statistics"):
+                st.write(f"Number of features：{X.shape[1]}")
+                st.write(f"Sample size：{X.shape[0]}")
             
             # ===== 诊断按钮区域 =====
             st.divider()
@@ -135,8 +135,8 @@ if uploaded_file:
             
             with btn_col:
                 if st.button(
-                    "🚀 启动智能诊断",
-                    help="点击开始分析流程",
+                    "🚀 Initiate Intelligent Diagnostics",
+                    help="Click to start the analysis process",
                     use_container_width=True,
                     type="primary"
                 ):
@@ -144,46 +144,46 @@ if uploaded_file:
             
             with status_col:
                 if 'run_diagnosis' not in st.session_state:
-                    st.info("等待启动诊断分析...")
+                    st.info("Waiting to start diagnostic analysis...")
                 else:
                     st.empty()
 
         # ===== 执行诊断流程 =====
         if 'run_diagnosis' in st.session_state:
             with col1:
-                with st.status("正在进行深度分析...", expanded=True) as status:
+                with st.status("In-depth analysis in progress...", expanded=True) as status:
                     # Stage1预测
-                    st.write("**Stage1 - IBD初步筛查**")
+                    st.write("**Stage1 - IBD initial screening**")
                     stage1_pred = catboost_model.predict(X)
                     prob1 = catboost_model.predict_proba(X)[0][1] * 100
-                    st.write(f"IBD可能性：{prob1:.1f}%")
+                    st.write(f"IBD likelihood：{prob1:.1f}%")
                     
                     # Stage2预测（如果预测为IBD）
                     if stage1_pred[0] == 1:
-                        st.write("**Stage2 - 疾病亚型分析**")
+                        st.write("**Stage2 - Disease subtype analysis**")
                         stage2_pred = lightgbm_model.predict(X)
                         prob2 = lightgbm_model.predict_proba(X)[0][1] * 100
-                        st.write(f"CD可能性：{prob2:.1f}%")
+                        st.write(f"CD likelihood：{prob2:.1f}%")
                         
                         status.update(
-                            label="分析完成 ✅",
+                            label="Analysis completed ✅",
                             state="complete",
                             expanded=False
                         )
-                        st.success(f"**最终诊断**: {'克罗恩病（CD）' if stage2_pred[0]==1 else '溃疡性结肠炎（UC）'}")
+                        st.success(f"**Final diagnosis**: {'Crohn's disease（CD）' if stage2_pred[0]==1 else 'ulcerative colitis（UC）'}")
                     else:
                         status.update(
-                            label="分析完成 ✅",
+                            label="Analysis completed ✅",
                             state="complete",
                             expanded=False
                         )
-                        st.success("**诊断结果**: 健康对照（HC）")
+                        st.success("**diagnosis result**: health control（HC）")
                     
         with col2:
             # ===== 可视化区域 =====
-            st.subheader("特征分析")
-            st.write("*此处可集成SHAP可视化组件*")
+            st.subheader("characterization")
+            st.write("*SHAP visualization components can be integrated here*")
             
     except Exception as e:
-        st.error(f"遇到错误: {str(e)}")
-        st.info("请检查数据格式是否符合要求")
+        st.error(f"encounter an error: {str(e)}")
+        st.info("Please check the data format for compliance")
