@@ -217,113 +217,147 @@ if uploaded_file:
                     st.warning(f"High missing ratio: {missing_ratio:.1f}%")
 
         # ======================
-        # 诊断主流程
-        # ======================
+# 诊断主流程完整代码
+# ======================
+if st.button("🚀 Start Intelligent Diagnosis", type="primary", use_container_width=True):
+    # ------------------
+    # Stage1 预测流程
+    # ------------------
+    with st.status("🔬 Stage1: Inflammatory Status Screening...", expanded=True) as status1:
+        try:
+            # 执行预测
+            stage1_pred = catboost_model.predict(X_stage1)
+            proba1 = catboost_model.predict_proba(X_stage1) * 100
+            
+            # 构建结果数据
+            results_stage1 = pd.DataFrame({
+                'Sample': X_stage1.index,
+                'Prediction': ['IBD' if p ==1 else 'Healthy' for p in stage1_pred],
+                'Healthy (%)': proba1[:, 0].round(1),
+                'IBD (%)': proba1[:, 1].round(1),
+                'Conf. Gap': (np.abs(proba1[:, 1] - proba1[:, 0])).round(1)
+            })
+            
+            # 显示配置
+            st.write("### Stage1 Prediction Report")
+            st.dataframe(
+                results_stage1.sort_values('Conf. Gap', ascending=False),
+                hide_index=True,
+                column_config={
+                    "Healthy (%)": st.column_config.ProgressColumn(
+                        "Healthy",
+                        help="Non-inflammatory probability",
+                        min_value=0,
+                        max_value=100,
+                        format="%.1f%%"
+                    ),
+                    "IBD (%)": st.column_config.ProgressColumn(
+                        "IBD",
+                        help="Inflammatory probability",
+                        min_value=0,
+                        max_value=100,
+                        format="%.1f%%"
+                    ),
+                    "Conf. Gap": st.column_config.NumberColumn(
+                        "Conf. Diff",
+                        help="Probabilistic difference between predictions",
+                        format="%.1f%%"
+                    )
+                }
+            )
+            
+            # 更新状态
+            status1.update(
+                label=f"Stage1 Complete: {sum(stage1_pred)} IBD Cases Identified ✅", 
+                state="complete"
+            )
+            
+        except Exception as e:
+            status1.update(label="Stage1 Failed ❌", state="error")
+            st.error(f"Stage1 Error: {str(e)}")
+            st.stop()
+    
+    # ------------------
+    # Stage2 预测流程
+    # ------------------
+    if sum(stage1_pred) > 0:
         st.divider()
-        if st.button("🚀 Start Intelligent Diagnosis", type="primary", use_container_width=True):
-            # ------------------
-            # Stage1 预测
-            # ------------------
-            with st.status("🔬 Stage1: IBD Screening...", expanded=True) as status1:
-                # 模型预测
-                stage1_pred = catboost_model.predict(X_stage1)
-                proba1 = catboost_model.predict_proba(X_stage1)
+        
+        with st.status("🔬 Stage2: Disease Subtyping Analysis...", expanded=True) as status2:
+            try:
+                # Stage2预处理
+                ibd_samples = X_stage1[stage1_pred == 1].index
+                X_stage2 = preprocess_prediction_data(raw_df[ibd_samples], stage=2)
                 
-                # 处理结果
-                results_stage1 = pd.DataFrame({
-                    'Sample': X_stage1.index,
-                    'Diagnosis': ['IBD' if p==1 else 'Healthy' for p in stage1_pred],
-                    'Raw Confidence': [x[1] for x in proba1]
+                if X_stage2 is None:
+                    status2.update(label="Feature Alignment Failed ❌", state="error")
+                    st.stop()
+                
+                # 执行预测
+                stage2_pred = lightgbm_model.predict(X_stage2)
+                proba2 = lightgbm_model.predict_proba(X_stage2) * 100
+                
+                # 构建结果数据
+                results_stage2 = pd.DataFrame({
+                    'Sample': X_stage2.index,
+                    'Prediction': ['CD' if p ==1 else 'UC' for p in stage2_pred],
+                    'UC (%)': proba2[:, 0].round(1),
+                    'CD (%)': proba2[:, 1].round(1),
+                    'Conf. Gap': (np.abs(proba2[:, 1] - proba2[:, 0])).round(1)
                 })
                 
-                # 置信度格式化
-                def format_conf(row):
-                    conf = row['Raw Confidence'] * 100
-                    if conf < 60:
-                        return f"⬇️ {conf:.1f}%"
-                    elif conf > 95:
-                        return f"✅ {conf:.1f}%"
-                    return f"{conf:.1f}%"
-                
-                results_stage1['Confidence'] = results_stage1.apply(format_conf, axis=1)
-                
-                # 展示结果
-                st.write("### Stage1 Results")
+                # 显示配置
+                st.write("### Stage2 Subtype Classification")
                 st.dataframe(
-                    results_stage1[['Sample', 'Diagnosis', 'Confidence']],
+                    results_stage2.sort_values('Conf. Gap', ascending=False),
                     hide_index=True,
                     column_config={
-                        "Confidence": st.column_config.ProgressColumn(
-                            width="medium",
+                        "Prediction": "Clinical Subtype",
+                        "UC (%)": st.column_config.ProgressColumn(
+                            "UC",
+                            help="Ulcerative Colitis probability",
                             min_value=0,
                             max_value=100,
-                            format="%f%%"
+                            format="%.1f%%"
+                        ),
+                        "CD (%)": st.column_config.ProgressColumn(
+                            "CD",
+                            help="Crohn's Disease probability",
+                            min_value=0,
+                            max_value=100,
+                            format="%.1f%%"
+                        ),
+                        "Conf. Gap": st.column_config.NumberColumn(
+                            "Conf. Diff",
+                            help="Difference between UC and CD probabilities",
+                            format="%.1f%%"
                         )
                     }
                 )
-                status1.update(label="Stage1 Completed ✅", state="complete")
-            
-            # ------------------
-            # Stage2 处理
-            # ------------------
-            if 1 in stage1_pred:
-                st.divider()
-                with st.status("🔬 Stage2: Subtype Analysis...", expanded=True) as status2:
-                    # 获取IBD样本
-                    ibd_samples = X_stage1[stage1_pred == 1].index
-                    
-                    # Stage2预处理
-                    with st.spinner('Preprocessing for subtype...'):
-                        X_stage2 = preprocess_prediction_data(raw_df[ibd_samples], stage=2)
-                        if X_stage2 is None:
-                            status2.update(label="Preprocessing Failed ❌", state="error")
-                            st.stop()
-                    
-                    # 模型预测
-                    stage2_pred = lightgbm_model.predict(X_stage2)
-                    proba2 = lightgbm_model.predict_proba(X_stage2)
-                    
-                    # 结果处理
-                    results_stage2 = pd.DataFrame({
-                        'Sample': X_stage2.index,
-                        'Subtype': ['CD' if p==1 else 'UC' for p in stage2_pred],
-                        'Raw Confidence': [x[1] for x in proba2]
-                    })
-                    
-                    # 置信度处理
-                    def format_conf_sub(row):
-                        conf = row['Raw Confidence'] * 100
-                        if conf < 50:
-                            return f"⚠️ {conf:.1f}% (Low)"
-                        elif conf < 70:
-                            return f"🟡 {conf:.1f}%"
-                        return f"✅ {conf:.1f}%"
-                    
-                    results_stage2['Confidence'] = results_stage2.apply(format_conf_sub, axis=1)
-                    
-                    # 显示结果
-                    st.write("### Stage2 Results")
-                    st.dataframe(
-                        results_stage2[['Sample', 'Subtype', 'Confidence']],
-                        hide_index=True,
-                        column_config={
-                            "Confidence": {
-                                "label": "Confidence Level",
-                                "help": "CD recognition confidence"
-                            }
-                        }
-                    )
-                    
-                    # 添加诊断说明
-                    st.info("""
-                    **Confidence Legend**  
-                    ✅ ≥70% - High confidence  
-                    🟡 50%-70% - Moderate confidence  
-                    ⚠️ <50% - Low confidence (suggest manual review)
-                    """)
-                    
-                    status2.update(label="Stage2 Analysis Completed ✅", state="complete")
-    
-    except Exception as e:
-        st.error(f"Critical Error: {str(e)}")
-        st.error("Please ensure: \n1. Excel格式第一列为菌种名称\n2. 数据为数值型\n3. 至少包含10个样本")
+                
+                # 完成状态更新
+                cd_count = sum(stage2_pred)
+                status2.update(
+                    label=f"Stage2 Complete: {cd_count} CD | {len(stage2_pred)-cd_count} UC ✅",
+                    state="complete"
+                )
+                
+            except Exception as e:
+                status2.update(label="Stage2 Failed ❌", state="error")
+                st.error(f"Stage2 Error: {str(e)}")
+        
+        # ======================
+        # 统一置信度说明
+        # ======================
+        st.divider()
+        with st.expander("ℹ️ Interpretation Guidelines"):
+            st.markdown("""
+            **Confidence Evaluation Criteria**  
+            ▾▾▾▾▾▾▾▾▾▾▾▾▾▾▾▾▾▾
+            - 🟢 **High Reliability (Conf. Gap ≥30%)**  
+              Clinical conclusions are highly credible and can be used directly in diagnostic decisions
+            - 🟡 **Moderate Reliability (15% ≤ Gap <30%)**  
+              A combination of other clinical indicators is recommended
+            - 🔴 **Low Reliability (Gap <15%)**  
+              Manual review of test data or resampling required
+            """)
