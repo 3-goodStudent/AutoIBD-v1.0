@@ -165,89 +165,165 @@ with st.sidebar:
         st.caption(f"Received file: `{uploaded_file.name}`")
 
 # ------------------------------
-# 主内容区
+# 主内容区完整代码
 # ------------------------------
 if uploaded_file:
     try:
-        # 读取数据
-        with st.spinner('Loading data...'):
+        # ======================
+        # 数据加载与预处理
+        # ======================
+        with st.spinner('🔄 Loading data...'):
             raw_df = pd.read_excel(uploaded_file, index_col=0)
             st.session_state.raw_df = raw_df
             
-        # 显示数据预览（独立expand区块）
-        with st.expander("▸ Raw Data Preview", expanded=True):
-            st.write("**Sample Columns:**", raw_df.columns.tolist()[:5], "...")
-            st.write("**First 5 Microorganisms:**", raw_df.index.tolist()[:5])
-            st.dataframe(raw_df.iloc[:5, :3].style.format("{:.4f}"))
+        # 数据预览（独立折叠面板）
+        with st.expander("▸ Raw Data Overview (First 3 Samples)", expanded=True):
+            col1, col2 = st.columns(2)
+            with col1:
+                st.write("**Sample Names:**", raw_df.columns.tolist()[:3])
+                st.write("**Total Features:**", len(raw_df))
+                st.write("**Sample Count:**", len(raw_df.columns))
+            with col2:
+                st.dataframe(raw_df.iloc[:5, :3].style.format("{:.4f}"))
         
-        # Stage1预处理（移除内嵌expand）
+        # ======================
+        # 第一阶段预处理
+        # ======================
         st.divider()
-        st.subheader("Stage1 Analysis")
-        with st.spinner('Preprocessing data for Stage1...'):
-            X_stage1 = preprocess_prediction_data(raw_df, stage=1)
+        with st.status("🔍 Stage1 Feature Preprocessing...", expanded=False) as pre_status:
+            with st.spinner('Aligning features...'):
+                X_stage1 = preprocess_prediction_data(raw_df, stage=1)
             
-        if X_stage1 is None:
-            st.stop()
-            
-        # 特征报告（独立expand区块）
-        feature_report = st.expander("🔍 Feature Matching Details")
-        with feature_report:
-            matched = len(set(X_stage1.columns) & set(cb_features))
-            missing = len(cb_features) - matched
-            st.write(f"✅ Matched Features: {matched}")
-            st.write(f"⚠️ Missing Features (filled with defaults): {missing}")
-            if missing > 0:
-                st.write("Example Missing Features:", list(set(cb_features) - set(X_stage1.columns))[:3])
+            if X_stage1 is None:
+                pre_status.update(label="Preprocessing Failed ❌", state="error")
+                st.stop()
+                
+            pre_status.update(label="Feature Alignment Completed ✅", state="complete")
         
-        # 诊断按钮（独立按钮区域）
+        # 特征质量报告
+        with st.expander("▸ Feature Quality Report", expanded=True):
+            tab1, tab2 = st.columns([2,3])
+            
+            with tab1:
+                matched = len(set(X_stage1.columns) & set(cb_features))
+                st.metric("Matched Features", f"{matched}/{len(cb_features)}")
+                st.metric("Samples Ready", len(X_stage1))
+                
+            with tab2:
+                missing_ratio = (X_stage1 == 0).mean().mean() * 100
+                st.write("**Missing Value Distribution**")
+                st.bar_chart((X_stage1 == 0).mean().sort_values(ascending=False).head(10))
+                if missing_ratio > 15:
+                    st.warning(f"High missing ratio: {missing_ratio:.1f}%")
+
+        # ======================
+        # 诊断主流程
+        # ======================
         st.divider()
-        # 修改后的分析流程部分
-        if st.button("🚀 Start Diagnosis", type="primary"):
-            # ===== Stage1独立区块 =====
-            with st.status("🔄 Stage1: IBD Screening...", expanded=True) as status1:
-                # Stage1预测代码
+        if st.button("🚀 Start Intelligent Diagnosis", type="primary", use_container_width=True):
+            # ------------------
+            # Stage1 预测
+            # ------------------
+            with st.status("🔬 Stage1: IBD Screening...", expanded=True) as status1:
+                # 模型预测
                 stage1_pred = catboost_model.predict(X_stage1)
                 proba1 = catboost_model.predict_proba(X_stage1)
                 
-                # 展示结果（不使用expander）
-                st.write("## Stage1 Results")
+                # 处理结果
                 results_stage1 = pd.DataFrame({
                     'Sample': X_stage1.index,
                     'Diagnosis': ['IBD' if p==1 else 'Healthy' for p in stage1_pred],
-                    'Confidence (%)': [f"{x[1]*100:.1f}" for x in proba1]
+                    'Raw Confidence': [x[1] for x in proba1]
                 })
-                st.dataframe(results_stage1)
+                
+                # 置信度格式化
+                def format_conf(row):
+                    conf = row['Raw Confidence'] * 100
+                    if conf < 60:
+                        return f"⬇️ {conf:.1f}%"
+                    elif conf > 95:
+                        return f"✅ {conf:.1f}%"
+                    return f"{conf:.1f}%"
+                
+                results_stage1['Confidence'] = results_stage1.apply(format_conf, axis=1)
+                
+                # 展示结果
+                st.write("### Stage1 Results")
+                st.dataframe(
+                    results_stage1[['Sample', 'Diagnosis', 'Confidence']],
+                    hide_index=True,
+                    column_config={
+                        "Confidence": st.column_config.ProgressColumn(
+                            width="medium",
+                            min_value=0,
+                            max_value=100,
+                            format="%f%%"
+                        )
+                    }
+                )
                 status1.update(label="Stage1 Completed ✅", state="complete")
-        
-            # ===== Stage2独立区块 =====
+            
+            # ------------------
+            # Stage2 处理
+            # ------------------
             if 1 in stage1_pred:
                 st.divider()
-                
-                # Stage2单独的status组件
-                with st.status("🔄 Stage2: CD/UC Classification...", expanded=True) as status2:
+                with st.status("🔬 Stage2: Subtype Analysis...", expanded=True) as status2:
+                    # 获取IBD样本
                     ibd_samples = X_stage1[stage1_pred == 1].index
-                    X_stage2 = preprocess_prediction_data(
-                        raw_df[ibd_samples], 
-                        stage=2
+                    
+                    # Stage2预处理
+                    with st.spinner('Preprocessing for subtype...'):
+                        X_stage2 = preprocess_prediction_data(raw_df[ibd_samples], stage=2)
+                        if X_stage2 is None:
+                            status2.update(label="Preprocessing Failed ❌", state="error")
+                            st.stop()
+                    
+                    # 模型预测
+                    stage2_pred = lightgbm_model.predict(X_stage2)
+                    proba2 = lightgbm_model.predict_proba(X_stage2)
+                    
+                    # 结果处理
+                    results_stage2 = pd.DataFrame({
+                        'Sample': X_stage2.index,
+                        'Subtype': ['CD' if p==1 else 'UC' for p in stage2_pred],
+                        'Raw Confidence': [x[1] for x in proba2]
+                    })
+                    
+                    # 置信度处理
+                    def format_conf_sub(row):
+                        conf = row['Raw Confidence'] * 100
+                        if conf < 50:
+                            return f"⚠️ {conf:.1f}% (Low)"
+                        elif conf < 70:
+                            return f"🟡 {conf:.1f}%"
+                        return f"✅ {conf:.1f}%"
+                    
+                    results_stage2['Confidence'] = results_stage2.apply(format_conf_sub, axis=1)
+                    
+                    # 显示结果
+                    st.write("### Stage2 Results")
+                    st.dataframe(
+                        results_stage2[['Sample', 'Subtype', 'Confidence']],
+                        hide_index=True,
+                        column_config={
+                            "Confidence": {
+                                "label": "Confidence Level",
+                                "help": "CD recognition confidence"
+                            }
+                        }
                     )
                     
-                    if X_stage2 is not None:
-                        # Stage2预测代码
-                        stage2_pred = lightgbm_model.predict(X_stage2)
-                        proba2 = lightgbm_model.predict_proba(X_stage2)
-                        
-                        st.write("## Stage2 Results")
-                        results_stage2 = pd.DataFrame({
-                            'Sample': X_stage2.index,
-                            'Subtype': ['CD' if p==1 else 'UC' for p in stage2_pred],
-                            'Confidence (%)': [f"{x[1]*100:.1f}" for x in proba2]
-                        })
-                        st.dataframe(results_stage2)
-                        status2.update(label="Stage2 Completed ✅", state="complete")
-                    else:
-                        status2.update(label="Stage2 Analysis Failed ❌", state="error")
+                    # 添加诊断说明
+                    st.info("""
+                    **Confidence Legend**  
+                    ✅ ≥70% - High confidence  
+                    🟡 50%-70% - Moderate confidence  
+                    ⚠️ <50% - Low confidence (suggest manual review)
+                    """)
+                    
+                    status2.update(label="Stage2 Analysis Completed ✅", state="complete")
     
-    except Exception as e:  # <- 此处必须正确结束整个try块
-        st.error(f"Error: {str(e)}")
-        st.info("Please verify the file format meets requirements")
-
+    except Exception as e:
+        st.error(f"Critical Error: {str(e)}")
+        st.error("Please ensure: \n1. Excel格式第一列为菌种名称\n2. 数据为数值型\n3. 至少包含10个样本")
