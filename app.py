@@ -68,8 +68,8 @@ lightgbm_model = load_model('CD_vs_UC_best_model.pkl')
 def preprocess_data(df):
     try:
         
-        features = df.iloc[0, 1:].copy()
-        features.index = df.iloc[0, 0].str.split('s__').str[-1]
+        features = df.copy()
+        features.index = df.iloc[:, 0].str.split('s__').str[-1]
         features = features.apply(pd.to_numeric, errors='coerce').fillna(0)
         return features.T, labels
     except Exception as e:
