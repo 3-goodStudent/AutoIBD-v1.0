@@ -202,52 +202,52 @@ if uploaded_file:
         # 诊断按钮（独立按钮区域）
         st.divider()
         # 修改后的分析流程部分
-if st.button("🚀 Start Diagnosis", type="primary"):
-    # ===== Stage1独立区块 =====
-    with st.status("🔄 Stage1: IBD Screening...", expanded=True) as status1:
-        # Stage1预测代码
-        stage1_pred = catboost_model.predict(X_stage1)
-        proba1 = catboost_model.predict_proba(X_stage1)
-        
-        # 展示结果（不使用expander）
-        st.write("## Stage1 Results")
-        results_stage1 = pd.DataFrame({
-            'Sample': X_stage1.index,
-            'Diagnosis': ['IBD' if p==1 else 'Healthy' for p in stage1_pred],
-            'Confidence (%)': [f"{x[1]*100:.1f}" for x in proba1]
-        })
-        st.dataframe(results_stage1)
-        status1.update(label="Stage1 Completed ✅", state="complete")
-
-    # ===== Stage2独立区块 =====
-    if 1 in stage1_pred:
-        st.divider()
-        
-        # Stage2单独的status组件
-        with st.status("🔄 Stage2: CD/UC Classification...", expanded=True) as status2:
-            ibd_samples = X_stage1[stage1_pred == 1].index
-            X_stage2 = preprocess_prediction_data(
-                raw_df[ibd_samples], 
-                stage=2
-            )
-            
-            if X_stage2 is not None:
-                # Stage2预测代码
-                stage2_pred = lightgbm_model.predict(X_stage2)
-                proba2 = lightgbm_model.predict_proba(X_stage2)
+        if st.button("🚀 Start Diagnosis", type="primary"):
+            # ===== Stage1独立区块 =====
+            with st.status("🔄 Stage1: IBD Screening...", expanded=True) as status1:
+                # Stage1预测代码
+                stage1_pred = catboost_model.predict(X_stage1)
+                proba1 = catboost_model.predict_proba(X_stage1)
                 
-                st.write("## Stage2 Results")
-                results_stage2 = pd.DataFrame({
-                    'Sample': X_stage2.index,
-                    'Subtype': ['CD' if p==1 else 'UC' for p in stage2_pred],
-                    'Confidence (%)': [f"{x[1]*100:.1f}" for x in proba2]
+                # 展示结果（不使用expander）
+                st.write("## Stage1 Results")
+                results_stage1 = pd.DataFrame({
+                    'Sample': X_stage1.index,
+                    'Diagnosis': ['IBD' if p==1 else 'Healthy' for p in stage1_pred],
+                    'Confidence (%)': [f"{x[1]*100:.1f}" for x in proba1]
                 })
-                st.dataframe(results_stage2)
-                status2.update(label="Stage2 Completed ✅", state="complete")
-            else:
-                status2.update(label="Stage2 Analysis Failed ❌", state="error")
+                st.dataframe(results_stage1)
+                status1.update(label="Stage1 Completed ✅", state="complete")
+        
+            # ===== Stage2独立区块 =====
+            if 1 in stage1_pred:
+                st.divider()
+                
+                # Stage2单独的status组件
+                with st.status("🔄 Stage2: CD/UC Classification...", expanded=True) as status2:
+                    ibd_samples = X_stage1[stage1_pred == 1].index
+                    X_stage2 = preprocess_prediction_data(
+                        raw_df[ibd_samples], 
+                        stage=2
+                    )
+                    
+                    if X_stage2 is not None:
+                        # Stage2预测代码
+                        stage2_pred = lightgbm_model.predict(X_stage2)
+                        proba2 = lightgbm_model.predict_proba(X_stage2)
+                        
+                        st.write("## Stage2 Results")
+                        results_stage2 = pd.DataFrame({
+                            'Sample': X_stage2.index,
+                            'Subtype': ['CD' if p==1 else 'UC' for p in stage2_pred],
+                            'Confidence (%)': [f"{x[1]*100:.1f}" for x in proba2]
+                        })
+                        st.dataframe(results_stage2)
+                        status2.update(label="Stage2 Completed ✅", state="complete")
+                    else:
+                        status2.update(label="Stage2 Analysis Failed ❌", state="error")
     
-    except Exception as e:
-        st.error(f"Error occurred: {str(e)}")
-        st.info("Please verify the file format meets requirements")
+            except Exception as e:
+                st.error(f"Error occurred: {str(e)}")
+                st.info("Please verify the file format meets requirements")
 
