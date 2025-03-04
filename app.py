@@ -169,7 +169,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 # 主标题
-st.markdown('<p class="sys-title">IBD Diagnostic and Subtyping System (AutoIBD)</p>', unsafe_allow_html=True)
+st.markdown('<p class="sys-title">IBD Diagnostic and Subtyping System (AutoIBD V1.0)</p>', unsafe_allow_html=True)
 # 副标题
 st.markdown('<p class="sys-subtitle">Two-Stage Machine Learning Diagnostic Model</p>', unsafe_allow_html=True)
 # 阶段说明（水平排列）
