@@ -183,11 +183,11 @@ with col2:
 # 侧边栏 - 数据上传
 # ------------------------------
 with st.sidebar:
-    st.header("Data Upload")
+    st.header("⏳🎯🔬Data Upload")
     uploaded_file = st.file_uploader(
-        "Upload Test Data (.xlsx)",
-        type=["xlsx"],
-        help="File format requirements:\n1. First row: Sample names\n2. First column: Microorganism names"
+        "📈Upload Test Data (.xlsx/.csv/.tsv/tab)",
+        type=["xlsx", "csv", "tsv"],  # 新增支持格式
+        help="📑File format requirements:\n✅1.First row: Sample names\n✅2.First column: Microorganism names"
     )
     
     if uploaded_file:
@@ -202,8 +202,15 @@ if uploaded_file:
         # ======================
         # 数据加载与预处理
         # ======================
-        with st.spinner('🔄 Loading data...'):
-            raw_df = pd.read_excel(uploaded_file, index_col=0)
+        file_extension = uploaded_file.name.split('.')[-1].lower()
+        
+        with st.spinner('📥🔄 Loading data...'):
+            if file_extension == 'xlsx':
+                raw_df = pd.read_excel(uploaded_file, index_col=0)
+            elif file_extension in ['csv', 'tsv']:
+                separator = ',' if file_extension == 'csv' else '\t'
+                raw_df = pd.read_csv(uploaded_file, index_col=0, sep=separator, engine='python')
+            
             st.session_state.raw_df = raw_df
             
         # 数据预览（独立折叠面板）
@@ -390,7 +397,11 @@ if uploaded_file:
                 - 🔴 **Low Reliability (Gap <15%)**  
                   Manual review of test data or resampling required
                 """)
-
+                
+    except pd.errors.ParserError as e:
+        st.error(f"File parsing failed: Please check the delimiters and formatting are correct.\n{str(e)}")
+    except UnicodeDecodeError:
+        st.error("Incorrect encoding: Please try to save the file with UTF-8 encoding.")
     except Exception as e:  # 修复遗漏的外层except
         st.error(f"Fatal System Error: {str(e)}")
         st.error("Error TraceID: AUTOMIBD_{}".format(datetime.now().strftime("%Y%m%d%H%M%S")))
