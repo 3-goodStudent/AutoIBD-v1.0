@@ -321,18 +321,22 @@ if uploaded_file:
                             state="complete"
                         )
                     
-                    except Exception as e:  # 这是缺少的except块
+                    except Exception as e:
                         status2.update(label="Stage2 Failed ❌", state="error")
-                        st.error(f"Stage2 Error: {str(e)}")  # 异常处理部分需要正确的缩进
-                    
-                # 统一置信度说明需要正确的缩进层级
+                        st.error(f"Stage2 Error: {str(e)}")
+                
+                # ======================
+                # 统一置信度说明
+                # ======================
                 st.divider()
                 with st.expander("ℹ️ Interpretation Guidelines"):
-                    st.markdown("""**Confidence Evaluation Criteria**  
-                        ▾▾▾▾▾▾▾▾▾▾▾▾▾▾▾▾▾▾
-                        - 🟢 **High Reliability (Conf. Gap ≥30%)**  
-                          Clinical conclusions are highly credible and can be used directly in diagnostic decisions
-                        - 🟡 **Moderate Reliability (15% ≤ Gap <30%)**  
-                          A combination of other clinical indicators is recommended
-                        - 🔴 **Low Reliability (Gap <15%)**  
-                          Manual review of test data or resampling required""")  # 保持原内容
+                    st.markdown("""
+                    **Confidence Evaluation Criteria**  
+                    ▾▾▾▾▾▾▾▾▾▾▾▾▾▾▾▾▾▾
+                    - 🟢 **High Reliability (Conf. Gap ≥30%)**  
+                      临床结论可信度高，可直接用于诊断决策
+                    - 🟡 **Moderate Reliability (15% ≤ Gap <30%)**  
+                      建议结合其他临床指标综合判断
+                    - 🔴 **Low Reliability (Gap <15%)**  
+                      需人工复核检测数据或重新采样
+                    """)
