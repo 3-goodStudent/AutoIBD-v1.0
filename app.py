@@ -307,12 +307,32 @@ if uploaded_file:
                             'Conf. Gap': (np.abs(proba2[:, 1] - proba2[:, 0])).round(1)
                         })
                         
-                        # 显示配置
-                        st.write("### Stage2 Subtype Classification")
+                        # 修正后的显示配置
                         st.dataframe(
                             results_stage2.sort_values('Conf. Gap', ascending=False),
                             hide_index=True,
-                            column_config={...}  # 保持原配置
+                            column_config={
+                                "Prediction": st.column_config.TextColumn("Clinical Subtype"),
+                                "UC (%)": st.column_config.ProgressColumn(
+                                    "UC",
+                                    help="Ulcerative Colitis probability",
+                                    min_value=0,
+                                    max_value=100,
+                                    format="%.1f%%"
+                                ),
+                                "CD (%)": st.column_config.ProgressColumn(
+                                    "CD",
+                                    help="Crohn's Disease probability",
+                                    min_value=0,
+                                    max_value=100,
+                                    format="%.1f%%"
+                                ),
+                                "Conf. Gap": st.column_config.NumberColumn(
+                                    "Conf. Diff",
+                                    help="Absolute difference between subtype probabilities",
+                                    format="%.1f%%"
+                                )
+                            }
                         )
                         
                         # 完成状态更新
@@ -335,11 +355,11 @@ if uploaded_file:
                 **Confidence Evaluation Criteria**  
                 ▾▾▾▾▾▾▾▾▾▾▾▾▾▾▾▾▾▾
                 - 🟢 **High Reliability (Conf. Gap ≥30%)**  
-                  临床结论可信度高，可直接用于诊断决策
+                  Clinical conclusions are highly credible and can be used directly in diagnostic decisions
                 - 🟡 **Moderate Reliability (15% ≤ Gap <30%)**  
-                  建议结合其他临床指标综合判断
+                  A combination of other clinical indicators is recommended
                 - 🔴 **Low Reliability (Gap <15%)**  
-                  需人工复核检测数据或重新采样
+                  Manual review of test data or resampling required
                 """)
 
     except Exception as e:  # 修复遗漏的外层except
