@@ -242,8 +242,8 @@ if uploaded_file:
                         })
                         st.dataframe(results_stage2)
                         status2.update(label="Stage2 Completed ✅", state="complete")
-                    else:
-                        status1.update(label="Complete - All Samples Healthy", state="complete")
+                else:
+                    status1.update(label="Complete - All Samples Healthy", state="complete")
                         
     except Exception as e:
         st.error(f"Error occurred: {str(e)}")
