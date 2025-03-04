@@ -174,22 +174,24 @@ if uploaded_file:
             raw_df = pd.read_excel(uploaded_file, index_col=0)
             st.session_state.raw_df = raw_df
             
-        # 显示数据预览
-        st.subheader("Data Preview")
-        st.write("**Sample Columns:**", raw_df.columns.tolist()[:5], "...")
-        st.write("**First 5 Microorganisms:**", raw_df.index.tolist()[:5])
-        st.dataframe(raw_df.iloc[:5, :3].style.format("{:.4f}"))
+        # 显示数据预览（独立expand区块）
+        with st.expander("▸ Raw Data Preview", expanded=True):
+            st.write("**Sample Columns:**", raw_df.columns.tolist()[:5], "...")
+            st.write("**First 5 Microorganisms:**", raw_df.index.tolist()[:5])
+            st.dataframe(raw_df.iloc[:5, :3].style.format("{:.4f}"))
         
-        # Stage1预处理
+        # Stage1预处理（移除内嵌expand）
         st.divider()
+        st.subheader("Stage1 Analysis")
         with st.spinner('Preprocessing data for Stage1...'):
             X_stage1 = preprocess_prediction_data(raw_df, stage=1)
             
         if X_stage1 is None:
             st.stop()
             
-        # 显示特征匹配报告
-        with st.expander("Feature Matching Report"):
+        # 特征报告（独立expand区块）
+        feature_report = st.expander("🔍 Feature Matching Details")
+        with feature_report:
             matched = len(set(X_stage1.columns) & set(cb_features))
             missing = len(cb_features) - matched
             st.write(f"✅ Matched Features: {matched}")
@@ -197,9 +199,10 @@ if uploaded_file:
             if missing > 0:
                 st.write("Example Missing Features:", list(set(cb_features) - set(X_stage1.columns))[:3])
         
-        # 诊断按钮
+        # 诊断按钮（独立按钮区域）
+        st.divider()
         if st.button("🚀 Start Diagnosis", type="primary"):
-            # Stage1预测
+            # Stage1状态区块（独立使用status）
             with st.status("Stage1: IBD Screening...", expanded=True) as status1:
                 stage1_pred = catboost_model.predict(X_stage1)
                 proba1 = catboost_model.predict_proba(X_stage1)
@@ -213,10 +216,11 @@ if uploaded_file:
                 st.dataframe(results_stage1)
                 status1.update(label="Stage1 Completed ✅", state="complete")
                 
-                # Stage2处理IBD样本
+                # Stage2处理IBD样本独立区块（不嵌套在expand内）
                 if 1 in stage1_pred:
-                    st.divider()
-                    with st.status("Stage2: CD/UC Classification...") as status2:
+                    status1.update(label="Stage1 Completed → Proceeding to Stage2", state="complete")
+                    # 新status组件独立存在
+                    with st.status("Stage2: CD/UC Classification...", expanded=True) as status2:
                         ibd_samples = X_stage1[stage1_pred == 1].index
                         # Stage2预处理
                         X_stage2 = preprocess_prediction_data(
@@ -238,6 +242,8 @@ if uploaded_file:
                         })
                         st.dataframe(results_stage2)
                         status2.update(label="Stage2 Completed ✅", state="complete")
+                    else:
+                        status1.update(label="Complete - All Samples Healthy", state="complete")
                         
     except Exception as e:
         st.error(f"Error occurred: {str(e)}")
