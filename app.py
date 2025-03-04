@@ -53,137 +53,193 @@ def set_bg_local(image_file):
     )
 
 # ------------------------------
-# 模型加载（保持不变）
+# 模型元数据加载
 # ------------------------------
 @st.cache(allow_output_mutation=True)
-def load_model(model_path):
-    return joblib.load(model_path)
+def load_model_with_meta(model_path):
+    """加载包含元数据的模型"""
+    model_dict = joblib.load(model_path)
+    return model_dict['model'], model_dict['feature_names'], model_dict.get('feature_stats', {})
 
-catboost_model = load_model('IBD_vs_HC_best_model.pkl')
-lightgbm_model = load_model('CD_vs_UC_best_model.pkl')
+catboost_model, cb_features, cb_stats = load_model_with_meta('IBD_vs_HC_best_model_with_meta.pkl')
+lightgbm_model, lgb_features, lgb_stats = load_model_with_meta('CD_vs_UC_best_model_with_meta.pkl')
 
 # ------------------------------
-# 预处理函数
+# 特征对齐函数（核心逻辑）
 # ------------------------------
-def preprocess_data(df):
+def align_features(input_df, model_features, feature_stats=None):
+    """对齐输入特征与模型特征"""
     try:
+        # 初始化标准化DataFrame
+        aligned = pd.DataFrame(columns=model_features)
         
-        features = df.copy()
-        features.index = df.iloc[:, 0].str.split('s__').str[-1]
-        features = features.apply(pd.to_numeric, errors='coerce').fillna(0)
-        return features.T, labels
+        # 清洗输入特征名称
+        cleaned_input = (
+            input_df.columns
+            .str.replace('.*[sgtpf]__', '', regex=True)  # 去除分类层级
+            .str.replace('[^a-zA-Z0-9]', '_', regex=True)
+            .str.strip('_')
+            .str.lower()
+        )
+        
+        # 构建特征映射表 (模型特征小写->标准特征名)
+        model_feature_map = {f.lower(): f for f in model_features}
+        
+        # 遍历清洗后的输入特征
+        for input_name in cleaned_input:
+            if input_name in model_feature_map:
+                std_name = model_feature_map[input_name]
+                aligned[std_name] = input_df[input_df.columns[cleaned_input == input_name][0]]
+        
+        # 填充缺失特征
+        missing_features = set(model_features) - set(aligned.columns)
+        for f in missing_features:
+            fill_value = feature_stats.get(f, {}).get('min', 0) if feature_stats else 0
+            aligned[f] = fill_value
+        
+        # 确保特征顺序
+        return aligned[model_features]
+        
     except Exception as e:
-        st.error(f"Data processing errors: {str(e)}")
-        return None, None
+        st.error(f"Feature alignment failed: {str(e)}")
+        return None
+
+# ------------------------------
+# 数据预处理流程
+# ------------------------------
+def preprocess_prediction_data(raw_df, stage=1):
+    """处理预测数据:
+    raw_df: 行名是菌种名称，列名是样本名称
+    stage: 1表示第一阶段模型，2表示第二阶段模型
+    """
+    try:
+        # 选择对应模型的参数
+        target_model = catboost_model if stage ==1 else lightgbm_model
+        target_features = cb_features if stage ==1 else lgb_features
+        stats = cb_stats if stage ==1 else lgb_stats
+        
+        # 转置为样本×特征格式
+        features = raw_df.T
+        
+        # 对齐特征
+        aligned_features = align_features(features, target_features, stats)
+        if aligned_features is None:
+            return None
+            
+        # 数值转换
+        aligned_features = aligned_features.apply(pd.to_numeric, errors='coerce').fillna(0)
+        return aligned_features
+    
+    except Exception as e:
+        st.error(f"预处理失败: {str(e)}")
+        return None
 
 # ------------------------------
 # 初始化背景
 # ------------------------------
-set_bg_local("background.jpg")  # 调用背景设置
+set_bg_local("background.jpg")  # 请确保存在背景图片
 
 # ------------------------------
 # 主界面
 # ------------------------------
-st.title("Intelligent Diagnostic System for Intestinal Flora IBD")
+st.title("Intestinal Flora IBD Diagnostic System")
 st.markdown("""
-**A two-stage diagnostic model based on machine learning**  
-- **Stage1**: Screening for IBD (Inflammatory Bowel Disease) using the CatBoost algorithm 🦠  
-- **Stage2**: Distinguishing CD and UC subtypes using the LightGBM algorithm 🔬
+**Two-Stage Machine Learning Diagnostic Model**  
+- **Stage1**: IBD Screening with CatBoost 
+- **Stage2**: CD/UC Classification with LightGBM
 """)
 
 # ------------------------------
 # 侧边栏 - 数据上传
 # ------------------------------
 with st.sidebar:
-    st.header("Data upload")
+    st.header("Data Upload")
     uploaded_file = st.file_uploader(
-        "Upload test data（*.csv / *.xlsx）",
-        type=["csv", "xlsx"],
-        help="Document formatting requirements：\n1. Sample labels for the first row\n2. First listed as species name of the colony"
+        "Upload Test Data (.xlsx)",
+        type=["xlsx"],
+        help="File format requirements:\n1. First row: Sample names\n2. First column: Microorganism names"
     )
     
     if uploaded_file:
         st.success("✔️ File uploaded successfully")
-        st.caption(f"Documents received：`{uploaded_file.name}`")
+        st.caption(f"Received file: `{uploaded_file.name}`")
 
 # ------------------------------
 # 主内容区
 # ------------------------------
 if uploaded_file:
     try:
-        # 数据加载与预处理
-        with st.spinner('Parsing data...'):
-            df = pd.read_csv(uploaded_file) if uploaded_file.name.endswith('.csv') else pd.read_excel(uploaded_file)
-            X, _ = preprocess_data(df)
+        # 读取数据
+        with st.spinner('Loading data...'):
+            raw_df = pd.read_excel(uploaded_file, index_col=0)
+            st.session_state.raw_df = raw_df
+            
+        # 显示数据预览
+        st.subheader("Data Preview")
+        st.write("**Sample Columns:**", raw_df.columns.tolist()[:5], "...")
+        st.write("**First 5 Microorganisms:**", raw_df.index.tolist()[:5])
+        st.dataframe(raw_df.iloc[:5, :3].style.format("{:.4f}"))
         
-        # 布局设置
-        col1, col2 = st.columns([3, 2])
+        # Stage1预处理
+        st.divider()
+        with st.spinner('Preprocessing data for Stage1...'):
+            X_stage1 = preprocess_prediction_data(raw_df, stage=1)
+            
+        if X_stage1 is None:
+            st.stop()
+            
+        # 显示特征匹配报告
+        with st.expander("Feature Matching Report"):
+            matched = len(set(X_stage1.columns) & set(cb_features))
+            missing = len(cb_features) - matched
+            st.write(f"✅ Matched Features: {matched}")
+            st.write(f"⚠️ Missing Features (filled with defaults): {missing}")
+            if missing > 0:
+                st.write("Example Missing Features:", list(set(cb_features) - set(X_stage1.columns))[:3])
         
-        with col1:
-            # ===== 数据预览部分 =====
-            st.subheader("Data overview")
-            st.dataframe(df.head(3), use_container_width=True, height=200)
-            
-            # 显示数据特征统计
-            with st.expander("View Statistics"):
-                st.write(f"Number of features：{X.shape[1]}")
-                st.write(f"Sample size：{X.shape[0]}")
-            
-            # ===== 诊断按钮区域 =====
-            st.divider()
-            btn_col, status_col = st.columns([2, 4])
-            
-            with btn_col:
-                if st.button(
-                    "🚀 Initiate Intelligent Diagnostics",
-                    help="Click to start the analysis process",
-                    use_container_width=True,
-                    type="primary"
-                ):
-                    st.session_state.run_diagnosis = True
-            
-            with status_col:
-                if 'run_diagnosis' not in st.session_state:
-                    st.info("Waiting to start diagnostic analysis...")
-                else:
-                    st.empty()
-
-        # ===== 执行诊断流程 =====
-        if 'run_diagnosis' in st.session_state:
-            with col1:
-                with st.status("In-depth analysis in progress...", expanded=True) as status:
-                    # Stage1预测
-                    st.write("**Stage1 - IBD initial screening**")
-                    stage1_pred = catboost_model.predict(X)
-                    prob1 = catboost_model.predict_proba(X)[0][1] * 100
-                    st.write(f"IBD likelihood：{prob1:.1f}%")
-                    
-                    # Stage2预测（如果预测为IBD）
-                    if stage1_pred[0] == 1:
-                        st.write("**Stage2 - Disease subtype analysis**")
-                        stage2_pred = lightgbm_model.predict(X)
-                        prob2 = lightgbm_model.predict_proba(X)[0][1] * 100
-                        st.write(f"CD likelihood：{prob2:.1f}%")
+        # 诊断按钮
+        if st.button("🚀 Start Diagnosis", type="primary"):
+            # Stage1预测
+            with st.status("Stage1: IBD Screening...", expanded=True) as status1:
+                stage1_pred = catboost_model.predict(X_stage1)
+                proba1 = catboost_model.predict_proba(X_stage1)
+                
+                # 展示结果
+                results_stage1 = pd.DataFrame({
+                    'Sample': X_stage1.index,
+                    'Diagnosis': ['IBD' if p==1 else 'Healthy' for p in stage1_pred],
+                    'Confidence (%)': [f"{x[1]*100:.1f}" for x in proba1]
+                })
+                st.dataframe(results_stage1)
+                status1.update(label="Stage1 Completed ✅", state="complete")
+                
+                # Stage2处理IBD样本
+                if 1 in stage1_pred:
+                    st.divider()
+                    with st.status("Stage2: CD/UC Classification...") as status2:
+                        ibd_samples = X_stage1[stage1_pred == 1].index
+                        # Stage2预处理
+                        X_stage2 = preprocess_prediction_data(
+                            raw_df[ibd_samples], 
+                            stage=2
+                        )
+                        if X_stage2 is None:
+                            st.stop()
+                            
+                        # Stage2预测
+                        stage2_pred = lightgbm_model.predict(X_stage2)
+                        proba2 = lightgbm_model.predict_proba(X_stage2)
                         
-                        status.update(
-                            label="Analysis completed ✅",
-                            state="complete",
-                            expanded=False
-                        )
-                        st.success(f"**Final diagnosis**: {'Crohn\'s disease（CD）' if stage2_pred[0]==1 else 'ulcerative colitis（UC）'}")
-                    else:
-                        status.update(
-                            label="Analysis completed ✅",
-                            state="complete",
-                            expanded=False
-                        )
-                        st.success("**diagnosis result**: health control（HC）")
-                    
-        with col2:
-            # ===== 可视化区域 =====
-            st.subheader("characterization")
-            st.write("*SHAP visualization components can be integrated here*")
-            
+                        # 展示结果
+                        results_stage2 = pd.DataFrame({
+                            'Sample': X_stage2.index,
+                            'Subtype': ['CD' if p==1 else 'UC' for p in stage2_pred],
+                            'Confidence (%)': [f"{x[1]*100:.1f}" for x in proba2]
+                        })
+                        st.dataframe(results_stage2)
+                        status2.update(label="Stage2 Completed ✅", state="complete")
+                        
     except Exception as e:
-        st.error(f"encounter an error: {str(e)}")
-        st.info("Please check the data format for compliance")
+        st.error(f"Error occurred: {str(e)}")
+        st.info("Please verify the file format meets requirements")
+
