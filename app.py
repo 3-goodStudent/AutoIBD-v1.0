@@ -339,8 +339,6 @@ if uploaded_file:
                       建议结合其他临床指标综合判断
                     - 🔴 **Low Reliability (Gap <15%)**  
                       需人工复核检测数据或重新采样
-                        """)
+                        """
+                )
                     
-                except Exception as e:  # 修复遗漏的外层except
-                    st.error(f"Fatal System Error: {str(e)}")
-                    st.error("Error TraceID: AUTOMIBD_{}".format(datetime.now().strftime("%Y%m%d%H%M%S")))
