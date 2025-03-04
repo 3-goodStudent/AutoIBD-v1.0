@@ -247,7 +247,7 @@ if uploaded_file:
                     else:
                         status2.update(label="Stage2 Analysis Failed ❌", state="error")
     
-        except Exception as e:
-            st.error(f"Error occurred: {str(e)}")
-            st.info("Please verify the file format meets requirements")
+    except Exception as e:  # <- 此处必须正确结束整个try块
+        st.error(f"Error: {str(e)}")
+        st.info("Please verify the file format meets requirements")
 
