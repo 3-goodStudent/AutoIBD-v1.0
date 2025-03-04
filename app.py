@@ -341,6 +341,6 @@ if uploaded_file:
                       需人工复核检测数据或重新采样
                         """)
                     
-            except Exception as e:  # 修复遗漏的外层except
-                st.error(f"Fatal System Error: {str(e)}")
-                st.error("Error TraceID: AUTOMIBD_{}".format(datetime.now().strftime("%Y%m%d%H%M%S")))
+                except Exception as e:  # 修复遗漏的外层except
+                    st.error(f"Fatal System Error: {str(e)}")
+                    st.error("Error TraceID: AUTOMIBD_{}".format(datetime.now().strftime("%Y%m%d%H%M%S")))
