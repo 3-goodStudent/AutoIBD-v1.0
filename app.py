@@ -325,20 +325,19 @@ if uploaded_file:
                         status2.update(label="Stage2 Failed ❌", state="error")
                         st.error(f"Stage2 Error: {str(e)}")
                 
-                # ======================
-                # 统一置信度说明
-                # ======================
-                st.divider()
-                with st.expander("ℹ️ Interpretation Guidelines"):
-                    st.markdown("""
-                    **Confidence Evaluation Criteria**  
-                    ▾▾▾▾▾▾▾▾▾▾▾▾▾▾▾▾▾▾
-                    - 🟢 **High Reliability (Conf. Gap ≥30%)**  
-                      临床结论可信度高，可直接用于诊断决策
-                    - 🟡 **Moderate Reliability (15% ≤ Gap <30%)**  
-                      建议结合其他临床指标综合判断
-                    - 🔴 **Low Reliability (Gap <15%)**  
-                      需人工复核检测数据或重新采样
-                        """
-                )
+        # ======================
+        # 统一置信度说明
+        # ======================
+        st.divider()
+        with st.expander("ℹ️ Interpretation Guidelines"):
+            st.markdown("""
+            **Confidence Evaluation Criteria**  
+            ▾▾▾▾▾▾▾▾▾▾▾▾▾▾▾▾▾▾
+            - 🟢 **High Reliability (Conf. Gap ≥30%)**  
+              临床结论可信度高，可直接用于诊断决策
+            - 🟡 **Moderate Reliability (15% ≤ Gap <30%)**  
+              建议结合其他临床指标综合判断
+            - 🔴 **Low Reliability (Gap <15%)**  
+              需人工复核检测数据或重新采样
+                """)
                     
