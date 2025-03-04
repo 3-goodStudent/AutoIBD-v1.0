@@ -143,12 +143,41 @@ set_bg_local("background.jpg")  # 请确保存在背景图片
 # ------------------------------
 # 主界面
 # ------------------------------
-st.title("Intestinal Flora IBD Diagnostic System")
+# ======================
+# 标题居中设置
+# ======================
 st.markdown("""
-**Two-Stage Machine Learning Diagnostic Model**  
-- **Stage1**: IBD Screening with CatBoost 
-- **Stage2**: CD/UC Classification with LightGBM
-""")
+<style>
+.sys-title {
+    text-align: center;
+    font-size: 2.5em;
+    color: #2B547E;
+    padding: 10px;
+}
+.sys-subtitle {
+    text-align: center;
+    font-size: 1.8em;
+    color: #4863A0;
+    margin-bottom: 30px;
+}
+.stage-title {
+    text-align: center;
+    font-size: 1.3em;
+    color: #5C7FB8;
+    margin: 15px 0;
+}
+</style>
+""", unsafe_allow_html=True)
+# 主标题
+st.markdown('<p class="sys-title">Intestinal Flora IBD Diagnostic System</p>', unsafe_allow_html=True)
+# 副标题
+st.markdown('<p class="sys-subtitle">Two-Stage Machine Learning Diagnostic Model</p>', unsafe_allow_html=True)
+# 阶段说明（水平排列）
+col1, col2 = st.columns(2)
+with col1:
+    st.markdown('<p class="stage-title">Stage1: IBD Screening with CatBoost</p>', unsafe_allow_html=True)
+with col2:
+    st.markdown('<p class="stage-title">Stage2: CD/UC Classification with LightGBM</p>', unsafe_allow_html=True)
 
 # ------------------------------
 # 侧边栏 - 数据上传
